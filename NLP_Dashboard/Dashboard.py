@@ -1,22 +1,9 @@
 import streamlit as st
 import pandas as pd
-import nltk
-from nltk.tokenize import word_tokenize
-from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
-from nltk.corpus import stopwords
-from textblob import TextBlob
-import io
+import spacy
 
-# Download necessary NLTK data files
-nltk.download('punkt')
-nltk.download('stopwords')
-
-# Stopwords untuk bahasa Indonesia
-stopwords_indonesia = set(stopwords.words('indonesian'))
-
-# Buat stemmer bahasa Indonesia
-factory = StemmerFactory()
-stemmer = factory.create_stemmer()
+# Load model bahasa multibahasa
+nlp = spacy.load("xx_ent_wiki_sm")
 
 # Setup halaman Streamlit
 st.title("NLP Dashboard dengan Dataset Pribadi")
@@ -40,32 +27,26 @@ if uploaded_file is not None:
     if st.button("Analyze"):
         st.subheader("Hasil Analisis NLP")
 
-        # Tokenisasi
-        df['Tokens'] = df[column_name].apply(lambda x: word_tokenize(str(x)))
-        st.write("Tokenisasi:")
+        # Tokenisasi dan penghapusan stopwords
+        def process_text(text):
+            # Pastikan input adalah string
+            if isinstance(text, str):
+                doc = nlp(text)
+                tokens = [token.text for token in doc if not token.is_stop]
+                return tokens
+            else:
+                return []  # Kembalikan list kosong jika input bukan string
+
+        df['Tokens'] = df[column_name].apply(process_text)
+        st.write("Tokenisasi (tanpa stopwords):")
         st.write(df[['Tokens']].head())
 
-        # Hapus stopwords
-        df['Filtered Tokens'] = df['Tokens'].apply(lambda x: [word for word in x if word.lower() not in stopwords_indonesia])
-        st.write("Token setelah Stopwords dihapus:")
-        st.write(df[['Filtered Tokens']].head())
+        # Lemmatization menggunakan spaCy
+        def lemmatize_tokens(tokens):
+            if tokens:  # Pastikan tokens tidak kosong
+                return [token.lemma_ for token in nlp(" ".join(tokens))]
+            return []  # Kembalikan list kosong jika tokens kosong
 
-        # Stemming
-        df['Stemmed Tokens'] = df['Filtered Tokens'].apply(lambda x: [stemmer.stem(word) for word in x])
-        st.write("Stemming:")
-        st.write(df[['Stemmed Tokens']].head())
-
-        # Analisis Sentimen (opsional untuk bahasa Inggris)
-        df['Sentiment Polarity'] = df[column_name].apply(lambda x: TextBlob(str(x)).sentiment.polarity)
-        df['Sentiment Subjectivity'] = df[column_name].apply(lambda x: TextBlob(str(x)).sentiment.subjectivity)
-        st.write("Analisis Sentimen (Polarity & Subjectivity):")
-        st.write(df[['Sentiment Polarity', 'Sentiment Subjectivity']].head())
-
-        # Opsi download hasil analisis
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Download hasil analisis sebagai CSV",
-            data=csv,
-            file_name='hasil_analisis_nlp.csv',
-            mime='text/csv',
-        )
+        df['Lemmatized Tokens'] = df['Tokens'].apply(lemmatize_tokens)
+        st.write("Lemmatized Tokens:")
+        st.write(df[['Lemmatized Tokens']].head())
